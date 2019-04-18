@@ -840,6 +840,18 @@ Result Compiler::BuildGraphicsPipeline(
         {
             elfSize = candidateElfs[candidateIdx].size();
             pElf = candidateElfs[candidateIdx].data();
+
+            if (getenv("AMDGPU_DUMP_ELF"))
+            {
+                ElfReader<Elf64> reader(m_gfxIp);
+                size_t readSize = 0;
+                if (reader.ReadFromBuffer(pElf, &readSize) == Result::Success)
+                {
+                    outs() << "===============================================================================\n";
+                    outs() << "// LLPC final ELF info\n";
+                    outs() << reader;
+                }
+            }
         }
 
         UpdateShaderCaches((result == Result::Success), pElf, elfSize, pShaderCache, hEntry, ShaderCacheCount);

@@ -70,6 +70,10 @@ bool PipelineShaders::runOnModule(
         if ((func.empty() == false) && (func.getLinkage() != GlobalValue::InternalLinkage))
         {
             auto shaderStage = GetShaderStageFromFunction(&func);
+            // TODO Should be InternalLinkage
+            if (shaderStage == ShaderStageInvalid)
+                continue;
+            assert(shaderStage != ShaderStageInvalid && "Invalid shader stage");
             m_entryPoints[shaderStage] = &func;
             m_entryPointMap[&func] = shaderStage;
         }
@@ -104,4 +108,3 @@ ShaderStage PipelineShaders::GetShaderStage(
 // =====================================================================================================================
 // Initializes the pass
 INITIALIZE_PASS(PipelineShaders, DEBUG_TYPE, "LLVM pass for getting pipeline shaders", false, true)
-
