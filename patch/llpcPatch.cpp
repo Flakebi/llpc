@@ -58,6 +58,8 @@
 
 using namespace llvm;
 
+static constexpr StringLiteral DefaultProfileGenName = "default_%m.profraw";
+
 namespace llvm
 {
 
@@ -69,6 +71,11 @@ opt<bool> DisablePatchOpt("disable-patch-opt", desc("Disable optimization for LL
 
 // -include-llvm-ir: include LLVM IR as a separate section in the ELF binary
 opt<bool> IncludeLlvmIr("include-llvm-ir", desc("Include LLVM IR as a separate section in the ELF binary"), init(false));
+
+// -profile-instr-generate: generate profiling instrumentation for pgo
+opt<bool> ProfileInstrGenerate("profile-instr-generate",
+                               desc("Generate profiling instrumentation for pgo"),
+                               init(false));
 
 } // cl
 
@@ -237,6 +244,14 @@ void Patch::AddOptimizationPasses(
         {
             passMgr.add(CreatePatchLoopUnrollInfoRectify());
         });
+
+    // Profile-guided optimizations
+    if (cl::ProfileInstrGenerate || getenv("AMDGPU_FORCE_PGO"))
+    {
+        passBuilder.EnablePGOInstrGen = true;
+        passBuilder.PGOInstrGen = DefaultProfileGenName;
+        passBuilder.PGOOptions.Atomic = true;
+    }
 
     passBuilder.populateModulePassManager(passMgr);
 }
