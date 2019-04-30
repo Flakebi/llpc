@@ -58,7 +58,7 @@
 
 using namespace llvm;
 
-static constexpr StringLiteral DefaultProfileGenName = "default_%m.profraw";
+static const char* DefaultProfileGenName = "Pipeline_%i_%m.profraw";
 
 namespace llvm
 {
@@ -246,10 +246,16 @@ void Patch::AddOptimizationPasses(
         });
 
     // Profile-guided optimizations
-    if (cl::ProfileInstrGenerate || getenv("AMDGPU_FORCE_PGO"))
+    const char* profileFilename = getenv("AMDVLK_PROFILE_FILE");
+    if (!profileFilename && cl::ProfileInstrGenerate)
+    {
+        profileFilename = DefaultProfileGenName;
+    }
+
+    if (profileFilename)
     {
         passBuilder.EnablePGOInstrGen = true;
-        passBuilder.PGOInstrGen = DefaultProfileGenName;
+        passBuilder.PGOInstrGen = profileFilename;
         passBuilder.PGOOptions.Atomic = true;
     }
 
