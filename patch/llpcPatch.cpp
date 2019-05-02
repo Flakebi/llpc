@@ -246,17 +246,67 @@ void Patch::AddOptimizationPasses(
         });
 
     // Profile-guided optimizations
-    const char* profileFilename = getenv("AMDVLK_PROFILE_FILE");
-    if (!profileFilename && cl::ProfileInstrGenerate)
+    const char* profileGenFilename = getenv("AMDVLK_PROFILE_FILE");
+    const char* profileUseFilename = getenv("AMDVLK_PROFILE_USE");
+    if (!profileGenFilename && cl::ProfileInstrGenerate)
     {
-        profileFilename = DefaultProfileGenName;
+        profileGenFilename = DefaultProfileGenName;
     }
 
-    if (profileFilename)
+    if (profileGenFilename)
     {
         passBuilder.EnablePGOInstrGen = true;
-        passBuilder.PGOInstrGen = profileFilename;
+        passBuilder.PGOInstrGen = profileGenFilename;
         passBuilder.PGOOptions.Atomic = true;
+    }
+
+    if (profileUseFilename)
+    {
+        // Replace %i with pipeline id
+        bool isEscaped = false; // If the next character is escaped
+        char expandedFilename[512] = { };
+        size_t j = 0;
+        for (size_t i = 0; j < sizeof(expandedFilename) && profileUseFilename[i]; i++, j++)
+        {
+            if (isEscaped && profileUseFilename[i] == 'i')
+            {
+                j--;
+                int written = snprintf(expandedFilename + j,
+                    sizeof(expandedFilename) - j,
+                    "0x%016llX",
+                    pContext->GetPiplineHashCode());
+                if (written < 0)
+                {
+                    printf("Failed to write pipeline hash\n");
+                    return;
+                }
+                j += written - 1;
+
+                continue;
+            }
+
+            expandedFilename[j] = profileUseFilename[i];
+            if (!isEscaped && profileUseFilename[i] == '%')
+                isEscaped = true;
+        }
+
+        if (j >= sizeof(expandedFilename))
+        {
+            printf("Failed to write pipeline hash\n");
+            return;
+        }
+
+        expandedFilename[j] = 0;
+
+        // Check if the file exists
+        if (FILE *file = fopen(expandedFilename, "r")) {
+            fclose(file);
+
+            // Use file
+            // The filename gets converted to a std::string so we can use the
+            // stack allocated variable.
+            passBuilder.PGOInstrUse = expandedFilename;
+        }
     }
 
     passBuilder.populateModulePassManager(passMgr);
