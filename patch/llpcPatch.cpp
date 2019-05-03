@@ -246,8 +246,8 @@ void Patch::AddOptimizationPasses(
         });
 
     // Profile-guided optimizations
-    const char* profileGenFilename = getenv("AMDVLK_PROFILE_FILE");
-    const char* profileUseFilename = getenv("AMDVLK_PROFILE_USE");
+    const char* profileGenFilename = getenv("AMDVLK_PROFILE_INSTR_GEN");
+    const char* profileUseFilename = getenv("AMDVLK_PROFILE_INSTR_USE");
     if (!profileGenFilename && cl::ProfileInstrGenerate)
     {
         profileGenFilename = DefaultProfileGenName;
