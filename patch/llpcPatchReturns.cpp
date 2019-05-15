@@ -30,14 +30,13 @@
  */
 #include "llvm/IR/Constant.h"
 #include "llvm/IR/Instructions.h"
-#include "llvm/PassSupport.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include <unordered_set>
-#include "SPIRVInternal.h"
 #include "llpcContext.h"
 #include "llpcPatchReturns.h"
+#include "llpcPipelineShaders.h"
 
 #define DEBUG_TYPE "llpc-patch-returns"
 
@@ -76,9 +75,20 @@ bool PatchReturns::runOnModule(
 
     Patch::Init(&module);
 
-    LowerOutput();
+    bool changed = false;
+    auto pPipelineShaders = &getAnalysis<PipelineShaders>();
+    for (uint32_t shaderStage = 0; shaderStage < ShaderStageCountInternal; ++shaderStage)
+    {
+        m_pEntryPoint = pPipelineShaders->GetEntryPoint(static_cast<ShaderStage>(shaderStage));
+        if (m_pEntryPoint != nullptr)
+        {
+            m_shaderStage = static_cast<ShaderStage>(shaderStage);
+            changed |= LowerOutput();
+        }
+    }
 
-    return true;
+
+    return changed;
 }
 
 // =====================================================================================================================
@@ -87,50 +97,106 @@ void PatchReturns::visitReturnInst(
     ReturnInst& retInst)    // [in] "Ret" instruction
 {
     // We only handle the "return" in entry point
-    if (retInst.getParent()->getParent()->getLinkage() == GlobalValue::InternalLinkage)
+    Function* function = retInst.getParent()->getParent();
+    if (function->getLinkage() == GlobalValue::InternalLinkage
+        || function != m_pEntryPoint)
     {
         return;
     }
 
-    LLPC_ASSERT(m_pRetBlock != nullptr); // Must have been created
-    BranchInst::Create(m_pRetBlock, retInst.getParent());
-    m_retInsts.insert(&retInst);
-}
+    // Only handle the return if it is preceeded with a call to export with
+    // the done flag set.
+    auto it = retInst.getParent()->rbegin();
+    it++;
 
-// =====================================================================================================================
-// Visits "call" instruction.
-void PatchReturns::visitCallInst(
-    CallInst& callInst) // [in] "Call" instruction
-{
-    auto pCallee = callInst.getCalledFunction();
-    if (pCallee == nullptr)
+    Instruction &beforeInst = *it;
+    CallInst *beforeInstCall = dyn_cast<CallInst>(&beforeInst);
+    if (beforeInstCall != nullptr)
     {
-        return;
-    }
+        auto mangledName = beforeInstCall->getCalledFunction()->getName();
 
-    auto mangledName = pCallee->getName();
+        if (!mangledName.startswith("llvm.amdgcn.exp"))
+        {
+            return;
+        }
 
-    if (mangledName.startswith("llvm.amdgcn.exp"))
-    {
-        //m_emitCalls.insert(&callInst);
+        auto doneArg = dyn_cast<Constant>(beforeInstCall->getArgOperand(beforeInstCall->arg_size() - 2));
+        if (!doneArg || doneArg->isZeroValue())
+        {
+            // Done is not set
+            return;
+        }
+
+        m_retInsts[&retInst] = beforeInstCall;
     }
 }
 
 // =====================================================================================================================
 // Does lowering opertions for SPIR-V outputs, replaces outputs with proxy variables.
-void PatchReturns::LowerOutput()
+bool PatchReturns::LowerOutput()
 {
     m_pRetBlock = BasicBlock::Create(*m_pContext, "", m_pEntryPoint);
 
-    auto pRetInst = ReturnInst::Create(*m_pContext, m_pRetBlock);
+    visit(*m_pEntryPoint);
 
-    visit(m_pModule);
+    if (m_retInsts.size() <= 1)
+    {
+        m_pRetBlock->eraseFromParent();
+        return false;
+    }
+
+    CallInst *callInst0 = m_retInsts.begin()->second;
+
+    // Create and insert phi nodes
+    unsigned argSize = callInst0->arg_size();
+    std::vector<PHINode*> phiInsts;
+    phiInsts.reserve(argSize);
+
+    for (auto& arg : callInst0->args())
+    {
+        auto phi = PHINode::Create(arg->getType(), argSize, "", m_pRetBlock);
+        phiInsts.push_back(phi);
+    }
+
+    // Fill phi nodes
+    for (auto retInst : m_retInsts)
+    {
+        auto *callInst = retInst.second;
+        auto bb = callInst->getParent();
+        for (size_t i = 0; i < argSize; i++)
+        {
+            phiInsts[i]->addIncoming(callInst->getArgOperand(i), bb);
+        }
+    }
+
+    // Insert call
+    std::vector<Value*> argsVec;
+    argsVec.reserve(argSize);
+    for (const auto arg : phiInsts)
+    {
+        argsVec.push_back(arg);
+    }
+    auto *pCallInst = CallInst::Create(callInst0->getFunctionType(), callInst0->getCalledValue(),
+        argsVec, callInst0->getName(), m_pRetBlock);
+    pCallInst->setTailCallKind(callInst0->getTailCallKind());
+    pCallInst->setCallingConv(callInst0->getCallingConv());
+    pCallInst->setAttributes(callInst0->getAttributes());
+    pCallInst->setDebugLoc(callInst0->getDebugLoc());
+
+    // Insert return
+    auto pRetInst = ReturnInst::Create(*m_pContext, m_pRetBlock);
 
     for (auto retInst : m_retInsts)
     {
-        retInst->dropAllReferences();
-        retInst->eraseFromParent();
+        BranchInst::Create(m_pRetBlock, retInst.first->getParent());
+        retInst.first->dropAllReferences();
+        retInst.first->eraseFromParent();
+        retInst.second->dropAllReferences();
+        retInst.second->eraseFromParent();
     }
+    m_retInsts.clear();
+
+    return true;
 }
 
 } // Llpc

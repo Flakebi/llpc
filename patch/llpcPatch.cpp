@@ -311,13 +311,7 @@ void Patch::AddOptimizationPasses(
     }
 
     passBuilder.populateModulePassManager(passMgr);
-    passMgr.add(createPrintModulePass(outs(),
-                "===============================================================================\n"
-                "// Directly before\n"));
     passMgr.add(CreatePatchReturns());
-    passMgr.add(createPrintModulePass(outs(),
-                "===============================================================================\n"
-                "// Directly after\n"));
 }
 
 // =====================================================================================================================

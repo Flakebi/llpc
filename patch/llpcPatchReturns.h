@@ -34,8 +34,8 @@
 
 #include <unordered_map>
 #include <unordered_set>
-#include <list>
 #include "llpcPatch.h"
+#include "llpcPipelineShaders.h"
 
 namespace Llpc
 {
@@ -49,9 +49,14 @@ class PatchReturns:
 public:
     PatchReturns();
 
-    virtual bool runOnModule(llvm::Module& module);
+    void getAnalysisUsage(llvm::AnalysisUsage& analysisUsage) const override
+    {
+        analysisUsage.addRequired<PipelineShaders>();
+        analysisUsage.addPreserved<PipelineShaders>();
+    }
+
+    virtual bool runOnModule(llvm::Module& module) override;
     virtual void visitReturnInst(llvm::ReturnInst& retInst);
-    virtual void visitCallInst(llvm::CallInst& callInst);
 
     // -----------------------------------------------------------------------------------------------------------------
 
@@ -60,13 +65,13 @@ public:
 private:
     LLPC_DISALLOW_COPY_AND_ASSIGN(PatchReturns);
 
-    void LowerOutput();
+    bool LowerOutput();
 
     // -----------------------------------------------------------------------------------------------------------------
 
     llvm::BasicBlock*   m_pRetBlock;    // The return block of entry point
 
-    std::unordered_set<llvm::ReturnInst*>  m_retInsts;      // "Return" instructions to be removed
+    std::unordered_map<llvm::ReturnInst*, llvm::CallInst*>  m_retInsts;      // "Return" instructions to be removed
 };
 
 } // Llpc
