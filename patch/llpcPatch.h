@@ -64,6 +64,7 @@ void initializePatchPreparePipelineAbiPass(PassRegistry&);
 void initializePatchPushConstOpPass(PassRegistry&);
 void initializePatchResourceCollectPass(PassRegistry&);
 void initializePatchSetupTargetFeaturesPass(PassRegistry&);
+void initializePatchReturnsPass(PassRegistry&);
 
 } // llvm
 
@@ -88,6 +89,7 @@ inline static void InitializePatchPasses(
   initializePatchPushConstOpPass(passRegistry);
   initializePatchResourceCollectPass(passRegistry);
   initializePatchSetupTargetFeaturesPass(passRegistry);
+  initializePatchReturnsPass(passRegistry);
 }
 
 llvm::ModulePass* CreatePatchBufferOp();
@@ -105,6 +107,7 @@ llvm::ModulePass* CreatePatchPreparePipelineAbi();
 llvm::ModulePass* CreatePatchPushConstOp();
 llvm::ModulePass* CreatePatchResourceCollect();
 llvm::ModulePass* CreatePatchSetupTargetFeatures();
+llvm::ModulePass* CreatePatchReturns();
 
 class Context;
 

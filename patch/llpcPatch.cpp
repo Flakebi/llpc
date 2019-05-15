@@ -301,6 +301,7 @@ void Patch::AddOptimizationPasses(
         // Check if the file exists
         if (FILE *file = fopen(expandedFilename, "r")) {
             fclose(file);
+            printf("Using PGO for pipeline %016llX\n", pContext->GetPiplineHashCode());
 
             // Use file
             // The filename gets converted to a std::string so we can use the
@@ -310,6 +311,13 @@ void Patch::AddOptimizationPasses(
     }
 
     passBuilder.populateModulePassManager(passMgr);
+    passMgr.add(createPrintModulePass(outs(),
+                "===============================================================================\n"
+                "// Directly before\n"));
+    passMgr.add(CreatePatchReturns());
+    passMgr.add(createPrintModulePass(outs(),
+                "===============================================================================\n"
+                "// Directly after\n"));
 }
 
 // =====================================================================================================================

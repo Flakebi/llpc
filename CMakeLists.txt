@@ -263,6 +263,7 @@ target_sources(llpc PRIVATE
     patch/llpcPatchPreparePipelineAbi.cpp
     patch/llpcPatchPushConstOp.cpp
     patch/llpcPatchResourceCollect.cpp
+    patch/llpcPatchReturns.cpp
     patch/llpcPatchSetupTargetFeatures.cpp
     patch/llpcSystemValues.cpp
     patch/llpcVertexFetch.cpp
