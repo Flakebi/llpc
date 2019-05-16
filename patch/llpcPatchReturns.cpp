@@ -63,6 +63,7 @@ PatchReturns::PatchReturns()
     Patch(ID),
     m_pRetBlock(nullptr)
 {
+    initializePipelineShadersPass(*PassRegistry::getPassRegistry());
     initializePatchReturnsPass(*PassRegistry::getPassRegistry());
 }
 
@@ -108,6 +109,10 @@ void PatchReturns::visitReturnInst(
     // the done flag set.
     auto it = retInst.getParent()->rbegin();
     it++;
+    if (it == retInst.getParent()->rend())
+    {
+        return;
+    }
 
     Instruction &beforeInst = *it;
     CallInst *beforeInstCall = dyn_cast<CallInst>(&beforeInst);
@@ -135,15 +140,15 @@ void PatchReturns::visitReturnInst(
 // Does lowering opertions for SPIR-V outputs, replaces outputs with proxy variables.
 bool PatchReturns::LowerOutput()
 {
-    m_pRetBlock = BasicBlock::Create(*m_pContext, "", m_pEntryPoint);
-
+    m_retInsts.clear();
     visit(*m_pEntryPoint);
 
     if (m_retInsts.size() <= 1)
     {
-        m_pRetBlock->eraseFromParent();
         return false;
     }
+
+    m_pRetBlock = BasicBlock::Create(*m_pContext, "", m_pEntryPoint);
 
     CallInst *callInst0 = m_retInsts.begin()->second;
 
@@ -194,7 +199,6 @@ bool PatchReturns::LowerOutput()
         retInst.second->dropAllReferences();
         retInst.second->eraseFromParent();
     }
-    m_retInsts.clear();
 
     return true;
 }
