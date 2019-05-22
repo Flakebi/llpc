@@ -58,6 +58,7 @@
 
 using namespace llvm;
 
+extern thread_local std::string profileUseFilenameString;
 static const char* DefaultProfileGenName = "Pipeline_%i_%m.profraw";
 
 namespace llvm
@@ -255,11 +256,12 @@ void Patch::AddOptimizationPasses(
 
     if (profileGenFilename)
     {
-        passBuilder.EnablePGOInstrGen = true;
+        /*passBuilder.EnablePGOInstrGen = true;
         passBuilder.PGOInstrGen = profileGenFilename;
-        passBuilder.PGOOptions.Atomic = true;
+        passBuilder.PGOOptions.Atomic = true;*/
     }
 
+    profileUseFilenameString = "";
     if (profileUseFilename)
     {
         // Replace %i with pipeline id
@@ -306,12 +308,13 @@ void Patch::AddOptimizationPasses(
             // Use file
             // The filename gets converted to a std::string so we can use the
             // stack allocated variable.
-            passBuilder.PGOInstrUse = expandedFilename;
+            //passBuilder.PGOInstrUse = expandedFilename;
+            profileUseFilenameString = expandedFilename;
         }
     }
 
     passBuilder.populateModulePassManager(passMgr);
-    passMgr.add(CreatePatchReturns());
+    //passMgr.add(CreatePatchReturns());
 }
 
 // =====================================================================================================================
