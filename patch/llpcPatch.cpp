@@ -40,6 +40,7 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/InstCombine/InstCombine.h"
+#include "llvm/Transforms/Instrumentation/PGOInstrumentation.h"
 #include "llvm/Transforms/IPO.h"
 #include "llvm/Transforms/IPO/AlwaysInliner.h"
 #include "llvm/Transforms/IPO/PassManagerBuilder.h"
@@ -247,74 +248,36 @@ void Patch::AddOptimizationPasses(
         });
 
     // Profile-guided optimizations
-    const char* profileGenFilename = getenv("AMDVLK_PROFILE_INSTR_GEN");
-    const char* profileUseFilename = getenv("AMDVLK_PROFILE_INSTR_USE");
-    if (!profileGenFilename && cl::ProfileInstrGenerate)
+    AMDGPUPGOOptions pgoOpts;
+
+    if (!pgoOpts.Late)
     {
-        profileGenFilename = DefaultProfileGenName;
+        if (pgoOpts.Gen())
+        {
+            passBuilder.EnablePGOInstrGen = true;
+            passBuilder.PGOInstrGen = pgoOpts.FileGen;
+            passBuilder.PGOOptions.Atomic = true;
+        }
     }
 
-    if (profileGenFilename)
+    if (pgoOpts.Use())
     {
-        /*passBuilder.EnablePGOInstrGen = true;
-        passBuilder.PGOInstrGen = profileGenFilename;
-        passBuilder.PGOOptions.Atomic = true;*/
-    }
-
-    profileUseFilenameString = "";
-    if (profileUseFilename)
-    {
-        // Replace %i with pipeline id
-        bool isEscaped = false; // If the next character is escaped
-        char expandedFilename[512] = { };
-        size_t j = 0;
-        for (size_t i = 0; j < sizeof(expandedFilename) && profileUseFilename[i]; i++, j++)
-        {
-            if (isEscaped && profileUseFilename[i] == 'i')
-            {
-                j--;
-                int written = snprintf(expandedFilename + j,
-                    sizeof(expandedFilename) - j,
-                    "0x%016llX",
-                    pContext->GetPiplineHashCode());
-                if (written < 0)
-                {
-                    printf("Failed to write pipeline hash\n");
-                    return;
-                }
-                j += written - 1;
-
-                continue;
-            }
-
-            expandedFilename[j] = profileUseFilename[i];
-            if (!isEscaped && profileUseFilename[i] == '%')
-                isEscaped = true;
-        }
-
-        if (j >= sizeof(expandedFilename))
-        {
-            printf("Failed to write pipeline hash\n");
-            return;
-        }
-
-        expandedFilename[j] = 0;
-
+        auto filename = pgoOpts.FileUseWithId(pContext->GetPiplineHashCode());
         // Check if the file exists
-        if (FILE *file = fopen(expandedFilename, "r")) {
+        if (FILE *file = fopen(filename.c_str(), "r")) {
             fclose(file);
             printf("Using PGO for pipeline %016llX\n", pContext->GetPiplineHashCode());
 
             // Use file
-            // The filename gets converted to a std::string so we can use the
-            // stack allocated variable.
-            //passBuilder.PGOInstrUse = expandedFilename;
-            profileUseFilenameString = expandedFilename;
+            if (pgoOpts.Late) {
+                profileUseFilenameString = filename;
+            } else {
+                passBuilder.PGOInstrUse = filename;
+            }
         }
     }
 
     passBuilder.populateModulePassManager(passMgr);
-    //passMgr.add(CreatePatchReturns());
 }
 
 // =====================================================================================================================
