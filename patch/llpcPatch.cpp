@@ -258,6 +258,7 @@ void Patch::AddOptimizationPasses(
             passBuilder.PGOInstrGen = pgoOpts.FileGen;
             passBuilder.PGOOptions.Atomic = true;
         }
+        passBuilder.EnablePGOUniform = pgoOpts.Uniform;
     }
 
     if (pgoOpts.Use())
