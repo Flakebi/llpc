@@ -54,6 +54,7 @@
 #include "llpcPassManager.h"
 #include "llpcPatch.h"
 #include "SPIRVInternal.h"
+#include <iostream>
 
 #define DEBUG_TYPE "llpc-patch"
 
@@ -256,7 +257,10 @@ void Patch::AddOptimizationPasses(
         {
             passBuilder.EnablePGOInstrGen = true;
             passBuilder.PGOInstrGen = pgoOpts.FileGen;
-            passBuilder.PGOOptions.Atomic = true;
+
+            const char *var = getenv("AMDVLK_PROFILE_NON_ATOMIC");
+            if (!var || var[0] == '0' || var[0] == 0)
+                passBuilder.PGOOptions.Atomic = true;
         }
         passBuilder.EnablePGOUniform = pgoOpts.Uniform;
     }
@@ -264,6 +268,7 @@ void Patch::AddOptimizationPasses(
     if (pgoOpts.Use())
     {
         auto filename = pgoOpts.FileUseWithId(pContext->GetPiplineHashCode());
+        //std::cerr << "Test file " << filename << "\n";
         // Check if the file exists
         if (FILE *file = fopen(filename.c_str(), "r")) {
             fclose(file);
@@ -275,6 +280,8 @@ void Patch::AddOptimizationPasses(
             } else {
                 passBuilder.PGOInstrUse = filename;
             }
+        } else {
+            printf("No PGO for pipeline %016llX\n", pContext->GetPiplineHashCode());
         }
     }
 
