@@ -14,6 +14,7 @@ void main()
 
     vec3 f3_0 = asin(f3_1);
 
+    //test
     fragColor = (f1_0 != f3_0.x) ? vec4(0.5) : vec4(1.0);
 }
 // BEGIN_SHADERTEST
