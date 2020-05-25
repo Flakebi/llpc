@@ -216,7 +216,7 @@ Result ShaderModuleHelper::optimizeSpirv(const BinaryData *spirvBinIn, BinaryDat
         spvOptimizeSpirv(pSpirvBinIn->codeSize, pSpirvBinIn->pCode, 0, nullptr, &optBinSize, &pOptBin, 4096, logBuf);
     if (success == false) {
       LLPC_ERROR("Failed to optimize SPIR-V ("
-                 << GetShaderStageName(static_cast<ShaderStage>(shaderStage) << " shader): " << logBuf));
+                 << GetShaderStageName(static_cast<ShaderStage>(shaderStage) << " shader): " << logBuf);
     }
   }
 #endif
