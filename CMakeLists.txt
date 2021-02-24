@@ -72,7 +72,6 @@ if(UNIX)
             -fvisibility-inlines-hidden
             -fcolor-diagnostics
             -Wall
-            -Werror
             -Wno-invalid-offsetof
             -Wno-missing-braces
         )
@@ -463,7 +462,6 @@ if(UNIX)
             -fvisibility-inlines-hidden
             -fcolor-diagnostics
             -Wall
-            -Werror
         )
         target_compile_options(vfx PRIVATE $<$<COMPILE_LANGUAGE:CXX>:
             -std=c++11
@@ -530,7 +528,6 @@ if(UNIX)
             -fvisibility-inlines-hidden
             -fcolor-diagnostics
             -Wall
-            -Werror
             -Wno-missing-braces
         )
         target_compile_options(amdllpc PRIVATE $<$<COMPILE_LANGUAGE:CXX>:
