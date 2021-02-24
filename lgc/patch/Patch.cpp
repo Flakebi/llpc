@@ -39,6 +39,7 @@
 #include "llvm/IR/Module.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Transforms/AggressiveInstCombine/AggressiveInstCombine.h"
+#include "llvm/Transforms/Instrumentation/PGOInstrumentation.h"
 #include "llvm/Transforms/IPO.h"
 #include "llvm/Transforms/IPO/AlwaysInliner.h"
 #include "llvm/Transforms/IPO/ForceFunctionAttrs.h"
@@ -54,6 +55,9 @@
 #define DEBUG_TYPE "lgc-patch"
 
 using namespace llvm;
+
+extern thread_local std::string profileUseFilenameString;
+static const char* DefaultProfileGenName = "Pipeline_%i_%m.profraw";
 
 namespace llvm {
 
@@ -72,6 +76,11 @@ opt<CodeGenOpt::Level> OptLevel("opt", desc("Set the optimization level:"), init
                                        clEnumValN(CodeGenOpt::Less, "quick", "quick compilation time"),
                                        clEnumValN(CodeGenOpt::Default, "default", "default optimizations"),
                                        clEnumValN(CodeGenOpt::Aggressive, "fast", "fast execution time")));
+
+// -profile-instr-generate: generate profiling instrumentation for pgo
+opt<bool> ProfileInstrGenerate("profile-instr-generate",
+                               desc("Generate profiling instrumentation for pgo"),
+                               init(false));
 
 } // namespace cl
 
@@ -294,6 +303,44 @@ void Patch::addOptimizationPasses(legacy::PassManager &passMgr) {
     passMgr.add(createInstSimplifyLegacyPass());
     passMgr.add(createDivRemPairsPass());
     passMgr.add(createCFGSimplificationPass());
+
+
+    // Profile-guided optimizations
+    AMDGPUPGOOptions pgoOpts;
+
+    if (!pgoOpts.Late)
+    {
+        if (pgoOpts.Gen())
+        {
+            passBuilder.EnablePGOInstrGen = true;
+            passBuilder.PGOInstrGen = pgoOpts.FileGen;
+
+            const char *var = getenv("AMDVLK_PROFILE_NON_ATOMIC");
+            if (!var || var[0] == '0' || var[0] == 0)
+              passBuilder.PGOOptions.Atomic = true;
+        }
+        passBuilder.EnablePGOUniform = pgoOpts.Uniform;
+    }
+
+    if (pgoOpts.Use())
+    {
+        auto filename = pgoOpts.FileUseWithId(pContext->GetPiplineHashCode());
+        //std::cerr << "Test file " << filename << "\n";
+        // Check if the file exists
+        if (FILE *file = fopen(filename.c_str(), "r")) {
+            fclose(file);
+            printf("Using PGO for pipeline %016llX\n", pContext->GetPiplineHashCode());
+
+            // Use file
+            if (pgoOpts.Late) {
+               profileUseFilenameString = filename;
+            } else {
+               passBuilder.PGOInstrUse = filename;
+            }
+        } else {
+           printf("No PGO for pipeline %016llX\n", pContext->GetPiplineHashCode());
+        }
+    }
   } else {
     PassManagerBuilder passBuilder;
     passBuilder.OptLevel = cl::OptLevel;
