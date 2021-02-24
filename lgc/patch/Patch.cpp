@@ -57,7 +57,6 @@
 using namespace llvm;
 
 extern thread_local std::string profileUseFilenameString;
-static const char* DefaultProfileGenName = "Pipeline_%i_%m.profraw";
 
 namespace llvm {
 
@@ -68,7 +67,7 @@ opt<bool> DisablePatchOpt("disable-patch-opt", desc("Disable optimization for LL
 
 // -use-llvm-opt: Use LLVM's standard optimization set instead of the curated optimization set
 opt<bool> UseLlvmOpt("use-llvm-opt",
-                     desc("Use LLVM's standard optimization set instead of the curated optimization set"), init(false));
+                     desc("Use LLVM's standard optimization set instead of the curated optimization set"), init(true));
 
 // -opt: Set the optimization level
 opt<CodeGenOpt::Level> OptLevel("opt", desc("Set the optimization level:"), init(CodeGenOpt::Default),
@@ -76,11 +75,6 @@ opt<CodeGenOpt::Level> OptLevel("opt", desc("Set the optimization level:"), init
                                        clEnumValN(CodeGenOpt::Less, "quick", "quick compilation time"),
                                        clEnumValN(CodeGenOpt::Default, "default", "default optimizations"),
                                        clEnumValN(CodeGenOpt::Aggressive, "fast", "fast execution time")));
-
-// -profile-instr-generate: generate profiling instrumentation for pgo
-opt<bool> ProfileInstrGenerate("profile-instr-generate",
-                               desc("Generate profiling instrumentation for pgo"),
-                               init(false));
 
 } // namespace cl
 
@@ -169,7 +163,7 @@ void Patch::addPasses(PipelineState *pipelineState, legacy::PassManager &passMgr
   passMgr.add(createPromoteMemoryToRegisterPass());
 
   if (!cl::DisablePatchOpt)
-    addOptimizationPasses(passMgr);
+    addOptimizationPasses(passMgr, pipelineState);
 
   // Stop timer for optimization passes and restart timer for patching passes.
   if (patchTimer) {
@@ -234,7 +228,7 @@ void Patch::addPasses(PipelineState *pipelineState, legacy::PassManager &passMgr
 // Add optimization passes to pass manager
 //
 // @param [in/out] passMgr : Pass manager to add passes to
-void Patch::addOptimizationPasses(legacy::PassManager &passMgr) {
+void Patch::addOptimizationPasses(legacy::PassManager &passMgr, PipelineState *pipelineState) {
   LLPC_OUTS("PassManager optimization level = " << cl::OptLevel << "\n");
 
   // Set up standard optimization passes.
@@ -305,43 +299,9 @@ void Patch::addOptimizationPasses(legacy::PassManager &passMgr) {
     passMgr.add(createCFGSimplificationPass());
 
 
-    // Profile-guided optimizations
-    AMDGPUPGOOptions pgoOpts;
-
-    if (!pgoOpts.Late)
-    {
-        if (pgoOpts.Gen())
-        {
-            passBuilder.EnablePGOInstrGen = true;
-            passBuilder.PGOInstrGen = pgoOpts.FileGen;
-
-            const char *var = getenv("AMDVLK_PROFILE_NON_ATOMIC");
-            if (!var || var[0] == '0' || var[0] == 0)
-              passBuilder.PGOOptions.Atomic = true;
-        }
-        passBuilder.EnablePGOUniform = pgoOpts.Uniform;
-    }
-
-    if (pgoOpts.Use())
-    {
-        auto filename = pgoOpts.FileUseWithId(pContext->GetPiplineHashCode());
-        //std::cerr << "Test file " << filename << "\n";
-        // Check if the file exists
-        if (FILE *file = fopen(filename.c_str(), "r")) {
-            fclose(file);
-            printf("Using PGO for pipeline %016llX\n", pContext->GetPiplineHashCode());
-
-            // Use file
-            if (pgoOpts.Late) {
-               profileUseFilenameString = filename;
-            } else {
-               passBuilder.PGOInstrUse = filename;
-            }
-        } else {
-           printf("No PGO for pipeline %016llX\n", pContext->GetPiplineHashCode());
-        }
-    }
+    puts("Path A");
   } else {
+    puts("Path B");
     PassManagerBuilder passBuilder;
     passBuilder.OptLevel = cl::OptLevel;
     passBuilder.DisableGVNLoadPRE = true;
@@ -372,6 +332,44 @@ void Patch::addOptimizationPasses(legacy::PassManager &passMgr) {
                                passMgr.add(createInstSimplifyLegacyPass());
                              });
 
+    // Profile-guided optimizations
+    AMDGPUPGOOptions pgoOpts;
+
+    const auto &options = pipelineState->getOptions();
+    uint64_t hash = options.hash[0]; // context->GetPipelineHashCode()
+    if (!pgoOpts.Late)
+    {
+        if (pgoOpts.Gen())
+        {
+            passBuilder.EnablePGOInstrGen = true;
+            passBuilder.PGOInstrGen = pgoOpts.FileGen;
+
+            const char *var = getenv("AMDVLK_PROFILE_NON_ATOMIC");
+            if (!var || var[0] == '0' || var[0] == 0)
+              passBuilder.PGOOptions.Atomic = true;
+        }
+        passBuilder.EnablePGOUniform = pgoOpts.Uniform;
+    }
+
+    if (pgoOpts.Use())
+    {
+        auto filename = pgoOpts.FileUseWithId(hash);
+        //std::cerr << "Test file " << filename << "\n";
+        // Check if the file exists
+        if (FILE *file = fopen(filename.c_str(), "r")) {
+            fclose(file);
+            printf("Using PGO for pipeline %016lX\n", hash);
+
+            // Use file
+            if (pgoOpts.Late) {
+               profileUseFilenameString = filename;
+            } else {
+               passBuilder.PGOInstrUse = filename;
+            }
+        } else {
+           printf("No PGO for pipeline %016lX\n", hash);
+        }
+    }
     passBuilder.populateModulePassManager(passMgr);
   }
 }

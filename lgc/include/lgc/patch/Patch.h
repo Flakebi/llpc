@@ -135,7 +135,7 @@ protected:
   llvm::Function *m_entryPoint; // Entry-point
 
 private:
-  static void addOptimizationPasses(llvm::legacy::PassManager &passMgr);
+  static void addOptimizationPasses(llvm::legacy::PassManager &passMgr, PipelineState *pipelineState);
 
   Patch() = delete;
   Patch(const Patch &) = delete;
