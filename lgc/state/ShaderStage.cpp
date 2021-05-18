@@ -156,7 +156,7 @@ Function *lgc::addFunctionArgs(Function *oldFunc, Type *retTy, ArrayRef<Type *> 
   SmallVector<AttributeSet, 8> argAttrs;
   if (append) {
     // Old arguments first.
-    for (unsigned idx = 0; idx != argTys.size(); ++idx)
+    for (unsigned idx = 0; idx != oldFuncTy->getNumParams(); ++idx)
       argAttrs.push_back(oldAttrList.getParamAttributes(idx));
   }
 
@@ -167,7 +167,7 @@ Function *lgc::addFunctionArgs(Function *oldFunc, Type *retTy, ArrayRef<Type *> 
     argAttrs.push_back((inRegMask >> idx) & 1 ? inRegAttrSet : emptyAttrSet);
   if (!append) {
     // Old arguments.
-    for (unsigned idx = 0; idx != argTys.size(); ++idx)
+    for (unsigned idx = 0; idx != oldFuncTy->getNumParams(); ++idx)
       argAttrs.push_back(oldAttrList.getParamAttributes(idx));
   }
   // Construct new AttributeList and set it on the new function.
@@ -182,7 +182,7 @@ Function *lgc::addFunctionArgs(Function *oldFunc, Type *retTy, ArrayRef<Type *> 
   // to the Function, and the attribute copy above copied the arg attributes at their original arg numbers.
   // Also set name of each new arg that comes from old arg.
   for (unsigned idx = 0; idx != argTys.size(); ++idx) {
-    Argument *arg = newFunc->getArg(append ? idx + oldFuncTy->params().size() : idx);
+    Argument *arg = newFunc->getArg(append ? idx + oldFuncTy->getNumParams() : idx);
     arg->setName(argNames[idx]);
     if ((inRegMask >> idx) & 1)
       arg->addAttr(Attribute::InReg);
