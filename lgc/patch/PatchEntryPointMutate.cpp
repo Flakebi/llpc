@@ -798,11 +798,9 @@ void PatchEntryPointMutate::processCalls(Function &func, SmallVectorImpl<Type *>
   // We need to scan the code and modify each call to append the extra args.
   IRBuilder<> builder(func.getContext());
   for (BasicBlock &block : func) {
-    for (auto it = block.begin(), end = block.end(); it != end;) {
-      // Get the instruction and increment the iterator beyond it, so we can safely erase the instruction.
-      Instruction *inst = &*it;
-      ++it;
-      auto call = dyn_cast<CallInst>(inst);
+    // Use early increment iterator, so we can safely erase the instruction.
+    for (Instruction &inst : make_early_inc_range(block)) {
+      auto call = dyn_cast<CallInst>(&inst);
       if (!call)
         continue;
       // Got a call. Skip it if it calls an intrinsic or an internal lgc.* function.
